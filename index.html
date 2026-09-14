@@ -1083,6 +1083,39 @@
             await createLoan(loanInfo,segList);
         }
 
+        // ===== PWA 安装到桌面：绕过 Chrome omnibox 安装图标被节流导致“点了没反应”的问题 =====
+        let deferredInstallPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();            // 拦下 Chrome 自动弹出的 mini-infobar，存起来等用户主动点
+            deferredInstallPrompt = e;
+        });
+        window.addEventListener('appinstalled', () => {
+            deferredInstallPrompt = null;
+            const b = document.getElementById('installBtn');
+            if (b) b.style.display = 'none';
+        });
+        window.triggerInstall = function(){
+            if (deferredInstallPrompt) {
+                deferredInstallPrompt.prompt();
+                deferredInstallPrompt.userChoice.finally(() => { deferredInstallPrompt = null; });
+                return;
+            }
+            // 没捕获到 beforeinstallprompt（被 Chrome 节流 / 已是独立 App）：给手动路径提示
+            showInstallHint();
+        };
+        function showInstallHint(){
+            const overlay = document.createElement('div');
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px;';
+            const box = document.createElement('div');
+            box.style.cssText = 'background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:18px;max-width:330px;width:100%;color:var(--text-main);';
+            box.innerHTML = '<p style="margin:0 0 10px;font-weight:600;">把本应用装到手机桌面</p>'
+                + '<p style="margin:0 0 14px;line-height:1.6;">点 Chrome 右上角 <b>⋮</b> 菜单 → 选 <b>“添加到主屏幕”</b>（或 <b>Install app</b>），即可一键安装。装好后桌面图标点开就是独立 App，不再走浏览器。</p>'
+                + '<div style="display:flex;justify-content:flex-end"><button class="btn btn-primary" id="installHintOk">知道了</button></div>';
+            overlay.appendChild(box);
+            document.body.appendChild(overlay);
+            box.querySelector('#installHintOk').onclick = () => overlay.remove();
+        }
+
         async function init(){
             await openDB();
             await loadAllData();
