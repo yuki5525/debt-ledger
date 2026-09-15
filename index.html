@@ -712,6 +712,66 @@
             render();
         }
 
+        // 轻量提示（独立 PWA 里 alert 被禁用，用 toast 代替）
+        function showToast(msg){
+            let t = document.getElementById('toast');
+            if(!t){
+                t = document.createElement('div');
+                t.id = 'toast';
+                t.style.cssText = 'position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);transform:translateX(-50%);background:rgba(20,20,28,.94);color:#fff;padding:10px 18px;border-radius:10px;font-size:14px;line-height:1.4;z-index:9999;opacity:0;transition:opacity .25s;pointer-events:none;max-width:82%;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,.35)';
+                document.body.appendChild(t);
+            }
+            t.textContent = msg;
+            t.style.opacity = '1';
+            clearTimeout(t._timer);
+            t._timer = setTimeout(()=>{ t.style.opacity = '0'; }, 2000);
+        }
+
+        // 显式把所有数据落盘到 IndexedDB（每次改动其实已自动保存，这里再兜底一次）
+        async function persistAll(){
+            if(!db) return;
+            const tx = db.transaction(["loans","segments","schedules","settings"],"readwrite");
+            const putSafe = async (store, items) => {
+                for(const it of (items||[])){
+                    try { await reqDone(tx.objectStore(store).put(it)); } catch(_){}
+                }
+            };
+            await putSafe("loans", state.loans);
+            await putSafe("segments", state.segments);
+            await putSafe("schedules", state.schedules);
+            try { await reqDone(tx.objectStore("settings").put({key:"remindDays", value: state.settings.remindDays})); } catch(_){}
+            await txDone(tx);
+        }
+
+        // 「保存」：落盘 + 下载一份带日期的本地 JSON 备份文件（双保险，关页面也不丢）
+        window.saveBackup = async function(){
+            try{
+                await persistAll();
+                const backup = {loans:state.loans, segments:state.segments, schedules:state.schedules, exportAt:new Date().toISOString()};
+                const blob = new Blob([JSON.stringify(backup,null,2)],{type:"application/json"});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `债务台账_保存_${new Date().toISOString().slice(0,10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast("✅ 已保存：数据存进本地，并下载了备份文件");
+            }catch(e){
+                showToast("保存失败：" + (e && e.message ? e.message : e));
+            }
+        };
+
+        // 「导入」：从备份文件恢复（先点按钮选文件）
+        window.triggerImport = function(){ const el = document.getElementById('importFile'); if(el) el.click(); };
+        window.onImportFile = async function(input){
+            try{
+                await window.importJSON(input);
+                showToast("✅ 导入成功，数据已恢复");
+            }catch(e){
+                showToast("导入失败：" + (e && e.message ? e.message : e));
+            }
+        };
+
         window.exportPDF = async function(){
             try{
                 const node = document.getElementById("app");
@@ -841,11 +901,14 @@
                 </div>
                 <div class="export-group">
                     <button class="btn btn-primary" onclick="state.currentView='addLoan';render()">新增贷款</button>
+                    <button class="btn btn-primary" onclick="saveBackup()">保存</button>
                     <button class="btn btn-outline" onclick="state.currentView='yearView';render()">年度日历视图</button>
                     <button class="btn btn-outline" onclick="exportCSV()">导出CSV</button>
                     <button class="btn btn-outline" onclick="exportJSON()">备份JSON</button>
+                    <button class="btn btn-outline" onclick="triggerImport()">导入</button>
                     <button class="btn btn-outline" onclick="exportPDF()">导出PDF</button>
                     <button class="btn btn-outline" id="installBtn" onclick="triggerInstall()">安装到桌面</button>
+                    <input type="file" id="importFile" accept="application/json" style="display:none" onchange="onImportFile(this)">
                 </div>
                 `
             }else if(state.currentView === "yearView"){
