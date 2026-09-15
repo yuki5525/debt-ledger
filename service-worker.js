@@ -1,7 +1,7 @@
 // 债务台账工作台 Service Worker
 // 作用：缓存应用外壳 + CDN 依赖，让页面在断网后仍能打开（离线 PWA）。
 // 注意：改了 index.html 后请把 CACHE 版本号 +1，否则用户端还会看到旧缓存。
-const CACHE = 'debt-ledger-v8';
+const CACHE = 'debt-ledger-v9';
 const SHELL = [
   './',
   './index.html',
@@ -10,7 +10,7 @@ const SHELL = [
 ];
 const CDN = [
   'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
-  'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
+  'https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js',
   'https://cdn.jsdelivr.net/npm/lunar-javascript@1.7.7/lunar.js'
 ];
