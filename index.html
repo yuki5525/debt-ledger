@@ -474,6 +474,21 @@
             render();
         }
 
+        // 一次性迁移：把旧名「车贷（Perodua Alza 1.5 AT）」改名为「车贷」（不影响贷款本身）
+        async function migrateLoanNames(){
+            let changed = false;
+            for(const l of state.loans){
+                if(l.name && l.name.includes("Perodua Alza")){
+                    l.name = "车贷";
+                    changed = true;
+                    const tx = db.transaction("loans","readwrite");
+                    await reqDone(tx.objectStore("loans").put(l));
+                    await txDone(tx);
+                }
+            }
+            if(changed){ await loadAllData(); }
+        }
+
         async function loadAllData(){
             state.loans = await getAll("loans");
             state.segments = await getAll("segments");
@@ -497,7 +512,7 @@
         }
 
         async function markCarLoanPaidExceptAugSep2026(silent=false){
-            const carLoan = state.loans.find(l=>l.name === "车贷（Perodua Alza 1.5 AT）");
+            const carLoan = state.loans.find(l=> l.name && l.name.includes("车贷"));
             if(!carLoan){ if(!silent) alert("找不到车贷，请先执行 addCarLoan()"); return; }
             const tx = db.transaction("schedules","readwrite");
             const schStore = tx.objectStore("schedules");
@@ -576,9 +591,9 @@
         }
 
         async function addCarLoan(silent=false) {
-            if(state.loans.some(l=>l.name === "车贷（Perodua Alza 1.5 AT）")){ if(!silent) alert("车贷已存在，跳过"); return; }
+            if(state.loans.some(l=> l.name && l.name.includes("车贷"))){ if(!silent) alert("车贷已存在，跳过"); return; }
             const loanInfo = {
-                name: "车贷（Perodua Alza 1.5 AT）",
+                name: "车贷",
                 totalAmount: 76317.10,
                 startDate: "2024-07-11",
                 totalPeriod: 108,
@@ -1121,6 +1136,7 @@
             await loadAllData();
             await seedPresetData();
             await loadAllData();
+            await migrateLoanNames();
             startClock();
             render();
             // 注册 Service Worker 实现离线（仅 http(s) 环境下生效）
